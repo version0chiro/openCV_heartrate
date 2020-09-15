@@ -40,14 +40,11 @@ class Process(object):
 
         g1 = self.extractColor(ROI1)
         g2 = self.extractColor(ROI2)
-        # g3 = self.extractColor(ROI3)
 
         L = len(self.data_buffer)
 
-        # calculate average green value of 2 ROIs
-        # r = (r1+r2)/2
+
         g = (g1 + g2) / 2
-        # b = (b1+b2)/2
 
         if (abs(g - np.mean(
                 self.data_buffer)) > 10 and L > 99):  # remove sudden change, if the avg value change is over 10, use the mean of the data_buffer
@@ -56,7 +53,6 @@ class Process(object):
         self.times.append(time.time() - self.t0)
         self.data_buffer.append(g)
 
-        # only process in a fixed-size buffer
         if L > self.buffer_size:
             self.data_buffer = self.data_buffer[-self.buffer_size:]
             self.times = self.times[-self.buffer_size:]
@@ -65,7 +61,6 @@ class Process(object):
 
         processed = np.array(self.data_buffer)
 
-        # start calculating after the first 10 frames
         if L == self.buffer_size:
             self.fps = float(L) / (self.times[-1] - self.times[
                 0])  # calculate HR using a true fps of processor of the computer, not the fps the camera provide
@@ -82,8 +77,6 @@ class Process(object):
             self.freqs = float(self.fps) / L * np.arange(L / 2 + 1)
             freqs = 60. * self.freqs
 
-            # idx_remove = np.where((freqs < 50) & (freqs > 180))
-            # raw[idx_remove] = 0
 
             self.fft = np.abs(raw) ** 2  # get amplitude spectrum
 
@@ -100,9 +93,9 @@ class Process(object):
             self.bpms.append(self.bpm)
 
             processed = self.butter_bandpass_filter(processed, 0.8, 3, self.fps, order=3)
-            # ifft = np.fft.irfft(raw)
+
         self.samples = processed  # multiply the signal with 5 for easier to see in the plot
-        # TODO: find peaks to draw HR-like signal.
+
 
         if (mask.shape[0] != 10):
             out = np.zeros_like(face_frame)
@@ -111,11 +104,6 @@ class Process(object):
             if (processed[-1] > np.mean(processed)):
                 out[mask, 2] = 180 + processed[-1] * 10
             face_frame[mask] = out[mask]
-
-        # cv2.imshow("face", face_frame)
-        # out = cv2.add(face_frame,out)
-        # else:
-        # cv2.imshow("face", face_frame)
 
     def reset(self):
         self.frame_in = np.zeros((10, 10, 3), np.uint8)
@@ -143,7 +131,7 @@ class Process(object):
         y = signal.lfilter(b, a, data)
         return y
 
-
+process=Process()
 print("[INFO] Start webcam")
 time.sleep(1)
 cap = cv2.VideoCapture(0)
@@ -154,9 +142,25 @@ while True:
 
     frame = imutils.resize(frame,width=600)
     rgb=cv2.cvtColor(frame,cv2.COLOR_BGR2RGB)
-    frame=cv2.flip(rgb,1)
+    frame=cv2.flip(frame,1)
     cv2.imshow("test",frame)
+    process.frame_in = frame
+    process.run()
+    cv2.imshow("processed",frame)
+    frame=process.frame_out
+    f_fr=process.frame_ROI
+    bpm=process.bpm
+    # frame = cv2.cvtColor(frame,cv2.COLOR_RGB2BGR)
+    cv2.putText(frame,"FPS "+str(float("{:.2f}".format(process.fps))),
+                (20,450),cv2.FONT_HERSHEY_PLAIN,1.5,(0,255,255),2)
+    f_fr=np.transpose(f_fr,(0,1,2)).copy()
+    cv2.putText()
+    if process.bpms.__len__() > 50:
+        if(max(process.bpms-np.mean(process.bpms))<5):
+            cv2.putText(frame, "FPS " + str(float("{:.2f}".format(np.mean(process.bpms)))),
+                        (20, 250), cv2.FONT_HERSHEY_PLAIN, 1.5, (0, 255, 255), 2)
     key=cv2.waitKey(1) & 0xFF
+    cv2.imshow("output",frame)
     if key == ord('q'):
         print("[info] stop webcam")
         break
